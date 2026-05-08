@@ -96,3 +96,133 @@ void animKazan() {
         ledAyarla(false, false); delay(80);
     }
 }
+// ── SETUP ──────────────────────────────────────────────────────
+void setup() {
+    pinMode(ENCODER_A, INPUT_PULLUP);
+    pinMode(ENCODER_B, INPUT_PULLUP);
+    pinMode(RED_LED,   OUTPUT);
+    pinMode(GREEN_LED, OUTPUT);
+    pinMode(BUZZER,    OUTPUT);
+    pinMode(SOLENOID,  OUTPUT);
+
+    ledAyarla(true, false);
+    digitalWrite(SOLENOID, LOW);
+
+    attachInterrupt(digitalPinToInterrupt(ENCODER_A), encoderISR, CHANGE);
+
+    Serial.begin(9600);
+    Serial.println("=====================================");
+    Serial.println("        SAFE CRACKER BASLADI        ");
+    Serial.println("=====================================");
+    Serial.println("Hane 1 | Hedef: 20");
+    Serial.println("-------------------------------------");
+}
+
+// ── LOOP ───────────────────────────────────────────────────────
+void loop() {
+
+    int enc  = enkOku();
+    int fark = abs(enc - SIFRE[mevcutHane]);
+
+    // ──────────────────────────────────────────────────────────
+    // BEKLE: Encoder cevrilmeyi bekliyor
+    // ──────────────────────────────────────────────────────────
+    if (durum == BEKLE) {
+
+        ledAyarla(true, false);
+
+        Serial.print("Hane:");    Serial.print(mevcutHane + 1);
+        Serial.print(" Enc:");    Serial.print(enc);
+        Serial.print(" Hedef:");  Serial.print(SIFRE[mevcutHane]);
+        Serial.print(" Fark:");   Serial.println(fark);
+
+        if (fark <= ESIK) {
+            durum         = ONAYLIYOR;
+            onayBaslangic = millis();
+            Serial.println(">>> DOGRU BOLGE! 1.5 sn bekle...");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // ONAYLIYOR: Dogru bolgede, 1.5 sn sayiyor
+    // ──────────────────────────────────────────────────────────
+    else if (durum == ONAYLIYOR) {
+
+        unsigned long gecen = millis() - onayBaslangic;
+
+        // Yesil LED yanip soner
+        ledAyarla(false, (millis() / 200) % 2);
+
+        Serial.print("Onaylaniyor: ");
+        Serial.print(gecen / 100);
+        Serial.print("/15  Fark: ");
+        Serial.println(fark);
+
+        // Bolgeden ciktiysa geri don
+        if (fark > ESIK + 3) {
+            durum = BEKLE;
+            ledAyarla(true, false);
+            Serial.println(">>> Kaymadi! Tekrar dene.");
+            return;
+        }
+
+        // 1.5 sn doldu → onayla
+        if (gecen >= ONAY_SURESI) {
+            durum = ONAYLANDI;
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // ONAYLANDI: Hane dogru, gecise hazirla
+    // ──────────────────────────────────────────────────────────
+    else if (durum == ONAYLANDI) {
+
+        Serial.print(">>> Hane "); Serial.print(mevcutHane + 1);
+        Serial.println(" ONAYLANDI!");
+
+        if (mevcutHane < 3) {
+
+            animBasari();
+            mevcutHane++;
+            enkSifirla();
+            ledAyarla(true, false);
+            durum = BEKLE;
+
+            Serial.println("-------------------------------------");
+            Serial.print("Hane "); Serial.print(mevcutHane + 1);
+            Serial.print(" | Hedef: "); Serial.println(SIFRE[mevcutHane]);
+            Serial.println("-------------------------------------");
+
+        } else {
+            durum = KAZANDI;
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // KAZANDI: Tum haneler dogru, kasa aciliyor
+    // ──────────────────────────────────────────────────────────
+    else if (durum == KAZANDI) {
+
+        Serial.println("=====================================");
+        Serial.println("         KASA ACILIYOR!!!           ");
+        Serial.println("=====================================");
+
+        animKazan();
+
+        digitalWrite(SOLENOID, HIGH);
+        delay(SOLENOID_SURE);
+        digitalWrite(SOLENOID, LOW);
+
+        // Sifirla
+        mevcutHane = 0;
+        enkSifirla();
+        ledAyarla(true, false);
+        durum = BEKLE;
+
+        Serial.println("=== Oyun sifirlandi ===");
+        Serial.println("Hane 1 | Hedef: 20");
+        Serial.println("-------------------------------------");
+    }
+
+    delay(100);
+}
